@@ -51,7 +51,6 @@ function TangoSignal.Connect(self: Self, callback: (...any) -> ()): { Disconnect
 	}
 end
 
---TODO
 function TangoSignal.await(self: Self): ...any
 	assert(not self._isDestroyed, Messages.ERROR_MESSAGES.ALREADY_DESTROYED)
 
