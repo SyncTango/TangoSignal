@@ -1,6 +1,4 @@
 --!strict
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
 local TangoSignal = {}
 TangoSignal.__index = TangoSignal
 
@@ -49,6 +47,21 @@ function TangoSignal.Connect(self: Self, callback: (...any) -> ()): { Disconnect
 			end
 		end,
 	}
+end
+
+function TangoSignal.await(self: Self): ...any
+	assert(not self._isDestroyed, Messages.ERROR_MESSAGES.ALREADY_DESTROYED)
+
+	local BindableEvent = Instance.new("BindableEvent")
+	local connection
+
+	connection = self:Connect(function(...)
+		BindableEvent:Fire(...)
+
+		connection:Disconnect()
+	end)
+
+	return BindableEvent.Event:Wait()
 end
 
 function TangoSignal.Destroy(self: Self): ()
