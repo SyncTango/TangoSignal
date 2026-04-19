@@ -1,4 +1,5 @@
 --!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TangoSignal = {}
 TangoSignal.__index = TangoSignal
 
@@ -9,6 +10,7 @@ type Props = {
 
 type Self = typeof(setmetatable({}, TangoSignal)) & Props
 
+local messages = require(ReplicatedStorage.constants.messages)
 local Messages = require(script.Parent.Parent.constants.messages)
 local Logger = require(script.Parent.Logger)
 
@@ -49,19 +51,57 @@ function TangoSignal.Connect(self: Self, callback: (...any) -> ()): { Disconnect
 	}
 end
 
+--TODO
 function TangoSignal.await(self: Self): ...any
 	assert(not self._isDestroyed, Messages.ERROR_MESSAGES.ALREADY_DESTROYED)
 
-	local BindableEvent = Instance.new("BindableEvent")
+	local runningThread = coroutine.running()
 	local connection
 
 	connection = self:Connect(function(...)
-		BindableEvent:Fire(...)
-
 		connection:Disconnect()
+
+		coroutine.resume(runningThread, ...)
 	end)
 
-	return BindableEvent.Event:Wait()
+	return coroutine.yield()
+end
+
+function TangoSignal.awaitWithTimeout(self: Self, timeout: number): ...any
+	assert(not self._isDestroyed, Messages.ERROR_MESSAGES.ALREADY_DESTROYED)
+
+	local runningThread = coroutine.running()
+	local connection
+
+	local hasResumed = false
+
+	task.delay(timeout, function()
+		if hasResumed then
+			return
+		end
+
+		hasResumed = true
+
+		if connection then
+			connection:Disconnect()
+		end
+
+		coroutine.resume(runningThread, nil)
+	end)
+
+	connection = self:Connect(function(...)
+		if hasResumed then
+			return
+		end
+
+		if connection then
+			connection:Disconnect()
+		end
+
+		coroutine.resume(runningThread, ...)
+	end)
+
+	return coroutine.yield()
 end
 
 function TangoSignal.Destroy(self: Self): ()
