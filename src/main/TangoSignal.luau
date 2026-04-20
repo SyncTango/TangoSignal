@@ -97,6 +97,8 @@ function TangoSignal.awaitWithTimeout(self: Self, timeout: number): ...any
 			return
 		end
 
+		hasResumed = true
+
 		if connection then
 			connection:Disconnect()
 		end
