@@ -7,5 +7,6 @@ return {
 		end,
 
 		ALREADY_DESTROYED = "Signal was already destroyed",
+		AWAIT_NOT_YIELDABLE = "Cannot call await from a non-yieldable context",
 	},
 }
