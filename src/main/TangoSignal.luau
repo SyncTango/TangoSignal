@@ -1,4 +1,3 @@
---!strict
 local TangoSignal = {}
 TangoSignal.__index = TangoSignal
 
@@ -6,6 +5,7 @@ type Props = {
 	_callbacks: { (...any) -> () },
 	_threads: { thread },
 	_isDestroyed: boolean,
+	_head: number,
 }
 
 type Self = typeof(setmetatable({}, TangoSignal)) & Props
@@ -13,12 +13,30 @@ type Self = typeof(setmetatable({}, TangoSignal)) & Props
 local Messages = require(script.Parent.Parent.constants.messages)
 local Logger = require(script.Parent.Logger)
 
+local freeRunnerThread = nil
+
+local function threadReuse()
+	while true do
+		local signal, args = coroutine.yield()
+
+		local acquiredThread = freeRunnerThread
+		freeRunnerThread = nil
+
+		while signal._head ~= 0 do
+			signal._head -= 1
+			signal._callbacks[signal._head + 1](args)
+		end
+		freeRunnerThread = acquiredThread
+	end
+end
+
 function TangoSignal.new(): Self
 	local self: Self = setmetatable({}, TangoSignal) :: Self
 
 	self._callbacks = {}
 	self._threads = {}
 	self._isDestroyed = false
+	self._head = 0
 
 	return self
 end
@@ -26,12 +44,14 @@ end
 function TangoSignal.Fire(self: Self, ...: any): ()
 	assert(not self._isDestroyed, Messages.ERROR_MESSAGES.ALREADY_DESTROYED)
 
-	for _, callback in self._callbacks do
-		local ok, err = pcall(callback :: any, ...)
-
-		if not ok then
-			Logger:log(Messages.ERROR_MESSAGES.SIGNAL_ERROR(err))
+	self._head = #self._callbacks
+	while self._head ~= 0 do
+		if not freeRunnerThread then
+			freeRunnerThread = coroutine.create(threadReuse)
+			coroutine.resume(freeRunnerThread)
 		end
+		warn("EXECUTING!!!")
+		task.spawn(freeRunnerThread, self, ...)
 	end
 end
 
@@ -39,7 +59,6 @@ function TangoSignal.Connect(self: Self, callback: (...any) -> ()): { Disconnect
 	assert(not self._isDestroyed, Messages.ERROR_MESSAGES.ALREADY_DESTROYED)
 
 	table.insert(self._callbacks, callback)
-
 	return {
 		Disconnect = function()
 			local index = table.find(self._callbacks, callback)
